@@ -1,8 +1,10 @@
 //This file contains the User signin and login functions
 
-const bcrypt = require("bcrypt.js");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const {createUser, findUserByEmail} = require("../models/userModel");
+
+//console.log(bcrypt.hashSync("test", 10));
 
 const signUp = async (req, res) => {
     try {
@@ -20,8 +22,9 @@ const login = async(req, res) => {
     try{
         const {email, password} = req.body;
         const {data, error} = await findUserByEmail(email);
+        console.log("DATA: ", data);
         if(error || !data) return res.status(400).json({message: "User not found"});
-        const isMatch = await bcrypt.compare(password, data.password);
+        const isMatch = await bcrypt.compare(password, data.password_hash);
         if(!isMatch) return res.status(400).json({message: "Wrong password"});
         const token = jwt.sign({email: data.email}, 
             process.env.JWT_SECRET,
@@ -34,4 +37,4 @@ const login = async(req, res) => {
     }
 };
 
-module.exports = {signuUp, login};
+module.exports = {signUp, login};
