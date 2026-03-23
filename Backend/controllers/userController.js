@@ -9,6 +9,7 @@ const updateProfile = async (req, res) => {
 
         const {
             name,
+            phone,
             age,
             gender,
             height_cm,
@@ -16,12 +17,13 @@ const updateProfile = async (req, res) => {
             activity_level,
             allergies,
             meal_preferences,
-            aim_kg,
-            deadline
+            deadline,
+            aim_kg
         } = req.body;
 
         const {data, error} = await updateUserProfile(email, {
             name,
+            phone,
             age,
             gender,
             height_cm,
@@ -29,8 +31,8 @@ const updateProfile = async (req, res) => {
             activity_level,
             allergies,
             meal_preferences,
-            aim_kg,
-            deadline
+            deadline,
+            aim_kg
         });
 
         if(error) return res.status(400).json({error});
