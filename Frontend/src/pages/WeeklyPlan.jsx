@@ -1,33 +1,71 @@
-import React from 'react';
-import { MOCK_WORKOUTS, VEG_MEALS, NONVEG_MEALS } from '../mockData';
+import React, { useEffect, useMemo, useState } from 'react';
+import { generateDiet, generateWorkout } from '../api/apiClient';
+
+const normalizeLogged = (value) => {
+  const v = value && typeof value === 'object' ? value : {};
+  return {
+    breakfast: !!v.breakfast,
+    lunch: !!v.lunch,
+    dinner: !!v.dinner,
+  };
+};
 
 const getDailyLog = () => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const saved = JSON.parse(localStorage.getItem('vita-daily-log'));
-    if (saved && saved.date === today) return saved.logged;
+    if (saved && saved.date === today) return normalizeLogged(saved.logged);
   } catch {}
-  return { breakfast: false, lunch: false, dinner: false };
+  return normalizeLogged(null);
 };
 
-const generateWeekData = (profile) => {
+const toArray = (value) => (Array.isArray(value) ? value : []);
+
+const parseWeeklyDiet = (plan) => {
+  const breakfasts = toArray(plan?.diet_plan_breakfast);
+  const lunches = toArray(plan?.diet_plan_lunch);
+  const dinners = toArray(plan?.diet_plan_dinner);
+  const maxLen = Math.max(breakfasts.length, lunches.length, dinners.length, 7);
+
+  return Array.from({ length: maxLen }, (_, i) => ({
+    breakfast: toArray(breakfasts[i]),
+    lunch: toArray(lunches[i]),
+    dinner: toArray(dinners[i]),
+  }));
+};
+
+const parseWeeklyWorkout = (plan) => {
+  const week = Array.isArray(plan?.workout_plan) ? plan.workout_plan : [];
+  return week.map((day) => ({
+    dayName: day?.day_name,
+    focus: day?.focus,
+    exercises: Array.isArray(day?.exercises)
+      ? day.exercises.map((ex) => ({ label: ex?.exercise_name || ex?.name || 'Exercise', icon: '💪' }))
+      : [],
+  }));
+};
+
+const generateWeekData = (profile, weeklyDiet, weeklyWorkout) => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const todayIndex = 3; 
+  const weekDay = new Date().getDay(); // 0: Sun -> 6: Sat
+  const todayIndex = weekDay === 0 ? 6 : weekDay - 1;
   const todayLog = getDailyLog();
-  
-  const activity = profile.activity_level || 'Moderate';
-  const workouts = MOCK_WORKOUTS[activity] || MOCK_WORKOUTS.Moderate;
 
   return days.map((day, i) => {
     let status = 'upcoming';
     if (i < todayIndex) status = 'completed';
     if (i === todayIndex) status = 'today';
 
-    const isRestDay = (i === 6);
-
     let mealsDone = { breakfast: false, lunch: false, dinner: false };
     if (status === 'completed') { mealsDone = { breakfast: true, lunch: true, dinner: true }; }
     if (status === 'today') { mealsDone = { breakfast: !!todayLog.breakfast, lunch: !!todayLog.lunch, dinner: !!todayLog.dinner }; }
+
+    const mealsForDay = weeklyDiet?.[i] || { breakfast: [], lunch: [], dinner: [] };
+    const workoutForDay = weeklyWorkout?.find((w) => w.dayName === day) || weeklyWorkout?.[i];
+    const exercises = workoutForDay?.focus === 'Rest'
+      ? [{ label: 'Rest Day', icon: '🛋️' }]
+      : (workoutForDay?.exercises?.length ? workoutForDay.exercises : [{ label: 'No workout generated', icon: 'ℹ️' }]);
 
     return {
       id: i,
@@ -35,7 +73,8 @@ const generateWeekData = (profile) => {
       date: new Date(Date.now() - (todayIndex - i) * 86400000).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }),
       status,
       mealsDone,
-      exercises: isRestDay ? [{ label: 'Rest Day', icon: '🛋️' }] : workouts,
+      meals: mealsForDay,
+      exercises,
     };
   });
 };
@@ -45,8 +84,47 @@ export default function WeeklyPlan() {
     try { return JSON.parse(localStorage.getItem('vita-profile')) || {}; } catch { return {}; }
   })();
 
-  const weekData = generateWeekData(profile);
-  const baseMeals = profile.meal_pref === 'Non-Veg' ? NONVEG_MEALS : VEG_MEALS;
+  const [weeklyDiet, setWeeklyDiet] = useState([]);
+  const [weeklyWorkout, setWeeklyWorkout] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPlans = async () => {
+      try {
+        const [dietRes, workoutRes] = await Promise.all([
+          generateDiet({
+            meal_preference: profile.meal_pref || profile.meal_preferences || 'Veg',
+            allergies: profile.allergies || '',
+          }),
+          generateWorkout({
+            activity_level: profile.activity_level || 'Moderate',
+          }),
+        ]);
+        if (isMounted) {
+          setWeeklyDiet(parseWeeklyDiet(dietRes?.data?.plan));
+          setWeeklyWorkout(parseWeeklyWorkout(workoutRes?.data?.plan));
+        }
+      } catch (err) {
+        if (isMounted) setError(
+          err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err?.message ||
+          'Failed to load weekly planner data.'
+        );
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchPlans();
+    return () => { isMounted = false; };
+  }, []);
+
+  const weekData = useMemo(
+    () => generateWeekData(profile, weeklyDiet, weeklyWorkout),
+    [profile, weeklyDiet, weeklyWorkout]
+  );
 
   return (
     <>
@@ -58,6 +136,16 @@ export default function WeeklyPlan() {
       </div>
 
       <div className="page-body">
+        {loading && (
+          <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>
+            Loading your weekly plan...
+          </div>
+        )}
+        {!!error && (
+          <div style={{ textAlign: 'center', padding: 20, color: 'var(--error)' }}>
+            {error}
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
           {weekData.map((day, i) => {
             const gradients = [
@@ -113,7 +201,7 @@ export default function WeeklyPlan() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       {['breakfast', 'lunch', 'dinner'].map(mealKey => {
                         const done = day.mealsDone[mealKey];
-                        const mealData = baseMeals[mealKey];
+                        const mealData = day.meals?.[mealKey] || [];
                         const title = mealKey.charAt(0).toUpperCase() + mealKey.slice(1);
                         return (
                           <div key={mealKey} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, color: done ? 'var(--text-primary)' : 'var(--text-muted)' }}>
@@ -132,7 +220,7 @@ export default function WeeklyPlan() {
                                 {title}
                               </div>
                               <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 2, fontSize: 12 }}>
-                                {mealData.items.map((item, idx) => (
+                                {(mealData.length ? mealData : ['No meal generated']).map((item, idx) => (
                                   <li key={idx} style={{ lineHeight: 1.3 }}>{item}</li>
                                 ))}
                               </ul>

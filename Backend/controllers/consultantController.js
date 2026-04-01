@@ -4,7 +4,7 @@ const fetchConsultants = async(req, res) => {
     try{
         const {data, error} = await getAllConsultants();
 
-        if(error) return res.status(400).json({error});
+        if(error) return res.status(400).json({error: error.message});
 
         res.json(data);
     }

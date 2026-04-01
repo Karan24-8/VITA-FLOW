@@ -6,6 +6,6 @@ const authMiddleware = require("../middlewares/authMiddleware");
 
 router.put("/profile", authMiddleware, updateProfile); // Middleware creates protection
 
-router.get("/users", fetchAllUsers);
+router.get("/users", authMiddleware, fetchAllUsers);
 
 module.exports = router;

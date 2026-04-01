@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { MOCK_CONSULTANTS } from '../mockData';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getConsultants } from '../api/apiClient';
 
 /* ─────────────────────────────────────────────
    ICONS
@@ -51,8 +51,11 @@ const AVATAR_COLORS = [
   { bg: 'rgba(217,119,6,0.15)', text: '#D97706' },
 ];
 
+const asText = (value, fallback = '') => (typeof value === 'string' ? value : fallback);
+
 function initials(name) {
-  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const safe = asText(name, 'User').trim();
+  return safe.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
 }
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -67,7 +70,7 @@ function BookingModal({ consultant, onClose }) {
   const [success, setSuccess] = useState(false);
 
   const availableDays = (() => {
-    const d = consultant.available_days.toLowerCase();
+    const d = asText(consultant.available_days).toLowerCase();
     if (d.includes('monday to friday'))   return ['Mon','Tue','Wed','Thu','Fri'];
     if (d.includes('monday to saturday')) return ['Mon','Tue','Wed','Thu','Fri','Sat'];
     if (d.includes('monday, wednesday'))  return ['Mon','Wed','Fri'];
@@ -76,7 +79,7 @@ function BookingModal({ consultant, onClose }) {
   })();
 
   const timeSlots = (() => {
-    const raw = consultant.available_time.replace(/\./g, '').toUpperCase();
+    const raw = asText(consultant.available_time).replace(/\./g, '').toUpperCase();
     const match = raw.match(/(\d+)(AM|PM)\s*-\s*(\d+)(AM|PM)/);
     if (!match) return [];
     let [, sh, sp, eh, ep] = match;
@@ -91,13 +94,8 @@ function BookingModal({ consultant, onClose }) {
   })();
 
   const canBook = selectedDay && selectedTime;
-
-  const handleBook = () => {
-    if (!canBook) return;
-    setSuccess(true);
-  };
-
-  const col = AVATAR_COLORS[consultant.idx % AVATAR_COLORS.length];
+  const handleBook = () => { if (!canBook) return; setSuccess(true); };
+  const col = AVATAR_COLORS[(consultant.idx ?? 0) % AVATAR_COLORS.length];
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -117,13 +115,10 @@ function BookingModal({ consultant, onClose }) {
                 Confirmation sent to {consultant.email}.
               </div>
             </div>
-            <button className="btn-primary" style={{ marginTop: 8 }} onClick={onClose}>
-              Done
-            </button>
+            <button className="btn-primary" style={{ marginTop: 8 }} onClick={onClose}>Done</button>
           </div>
         ) : (
           <>
-            {/* Consultant summary */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
               <div className="cons-avatar" style={{ width: 52, height: 52, fontSize: 18, background: col.bg, color: col.text }}>
                 {initials(consultant.name)}
@@ -139,7 +134,6 @@ function BookingModal({ consultant, onClose }) {
               </div>
             </div>
 
-            {/* Day picker */}
             <div className="modal-section-label" style={{ marginTop: 0 }}>Select a day</div>
             <div className="day-pills">
               {DAYS.map(d => {
@@ -157,7 +151,6 @@ function BookingModal({ consultant, onClose }) {
               })}
             </div>
 
-            {/* Time picker */}
             <div className="modal-section-label">Select a time slot</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {timeSlots.map(t => (
@@ -170,8 +163,7 @@ function BookingModal({ consultant, onClose }) {
                     borderColor: selectedTime === t ? 'var(--accent)' : 'var(--border-default)',
                     background: selectedTime === t ? 'var(--accent)' : 'transparent',
                     color: selectedTime === t ? '#fff' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    transition: 'all 150ms',
+                    cursor: 'pointer', transition: 'all 150ms',
                     fontFamily: 'var(--font-body)',
                   }}
                 >
@@ -180,7 +172,6 @@ function BookingModal({ consultant, onClose }) {
               ))}
             </div>
 
-            {/* Optional note */}
             <div className="modal-section-label">Note for the consultant (optional)</div>
             <textarea
               value={note}
@@ -192,8 +183,7 @@ function BookingModal({ consultant, onClose }) {
                 border: '1.5px solid var(--border-default)',
                 background: 'var(--bg-input)', color: 'var(--text-primary)',
                 padding: '10px 14px', fontSize: 13, fontFamily: 'var(--font-body)',
-                outline: 'none', resize: 'vertical',
-                transition: 'border-color 200ms',
+                outline: 'none', resize: 'vertical', transition: 'border-color 200ms',
               }}
               onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
               onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
@@ -217,56 +207,50 @@ function BookingModal({ consultant, onClose }) {
 /* ─────────────────────────────────────────────
    CONSULTANT CARD
 ───────────────────────────────────────────── */
-function ConsultantCard({ consultant, onBook }) {
-  const col = AVATAR_COLORS[consultant.idx % AVATAR_COLORS.length];
+function ConsultantCard({ consultant, index, onBook }) {
+  const col = AVATAR_COLORS[index % AVATAR_COLORS.length];
+  const name = asText(consultant.name, 'Consultant');
+  const specialization = asText(consultant.specialization, 'General');
+  const location = asText(consultant.location, 'N/A');
+  const availableTime = asText(consultant.available_time, 'N/A');
+  const availableDays = asText(consultant.available_days, 'N/A');
+  const contactNo = asText(consultant.contact_no, 'N/A');
+  const email = asText(consultant.email, '');
+  const charges = consultant.charges ?? 'N/A';
+
   return (
     <div className="cons-card">
       <div className="cons-card-top">
         <div className="cons-avatar" style={{ background: col.bg, color: col.text }}>
-          {initials(consultant.name)}
+          {initials(name)}
         </div>
         <div>
-          <div className="cons-name">{consultant.name}</div>
-          <div className={`cons-spec ${consultant.specialization}`}>{consultant.specialization}</div>
+          <div className="cons-name">{name}</div>
+          <div className={`cons-spec ${specialization}`}>{specialization}</div>
         </div>
       </div>
 
       <div className="cons-info-list">
-        <div className="cons-info-row">
-          <LocationIcon />
-          <span><span className="cons-info-val">{consultant.location}</span></span>
-        </div>
-        <div className="cons-info-row">
-          <ClockIcon />
-          <span>{consultant.available_time}</span>
-        </div>
-        <div className="cons-info-row">
-          <CalendarIcon />
-          <span>{consultant.available_days}</span>
-        </div>
-        <div className="cons-info-row">
-          <PhoneIcon />
-          <span>{consultant.contact_no}</span>
-        </div>
+        <div className="cons-info-row"><LocationIcon /><span>{location}</span></div>
+        <div className="cons-info-row"><ClockIcon /><span>{availableTime}</span></div>
+        <div className="cons-info-row"><CalendarIcon /><span>{availableDays}</span></div>
+        <div className="cons-info-row"><PhoneIcon /><span>{contactNo}</span></div>
       </div>
 
       <div>
         <div className="cons-charge-label">Consultation fee</div>
-        <div className="cons-charge">₹{consultant.charges}</div>
+        <div className="cons-charge">₹{charges}</div>
       </div>
 
       <div className="cons-card-footer">
-        <button
-          className="btn-sm-ghost"
-          onClick={() => window.open(`mailto:${consultant.email}`)}
-        >
+        <button className="btn-sm-ghost" onClick={() => email && window.open(`mailto:${email}`)} disabled={!email}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
             <polyline points="22,6 12,13 2,6"/>
           </svg>
           Email
         </button>
-        <button className="btn-sm-primary" onClick={() => onBook(consultant)}>
+        <button className="btn-sm-primary" onClick={() => onBook({ ...consultant, idx: index })}>
           <CalendarIcon />
           Book session
         </button>
@@ -279,23 +263,65 @@ function ConsultantCard({ consultant, onBook }) {
    MAIN PAGE
 ───────────────────────────────────────────── */
 export default function Consultants() {
+  const [consultants, setConsultants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [booking, setBooking] = useState(null);
 
   const tabs = ['All', 'Dietician', 'Physician'];
 
+  // ── Fetch from real backend ──
+  useEffect(() => {
+    let isMounted = true;
+    const fetchData = async () => {
+      try {
+        const res = await getConsultants();
+        if (isMounted) setConsultants(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        const msg =
+          err?.response?.data?.error?.message ||
+          (typeof err?.response?.data?.error === 'string' ? err.response.data.error : null) ||
+          err?.response?.data?.message ||
+          'Failed to load consultants.';
+        if (isMounted) setError(msg);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchData();
+    return () => { isMounted = false; };
+  }, []);
+
   const filtered = useMemo(() => {
-    return MOCK_CONSULTANTS.filter(c => {
-      const matchSpec = filter === 'All' || c.specialization === filter;
+    return consultants.filter(c => {
+      const spec = asText(c.specialization);
+      const name = asText(c.name);
+      const location = asText(c.location);
+      const matchSpec = filter === 'All' || spec === filter;
       const q = search.toLowerCase();
       const matchSearch = !q ||
-        c.name.toLowerCase().includes(q) ||
-        c.location.toLowerCase().includes(q) ||
-        c.specialization.toLowerCase().includes(q);
+        name.toLowerCase().includes(q) ||
+        location.toLowerCase().includes(q) ||
+        spec.toLowerCase().includes(q);
       return matchSpec && matchSearch;
     });
-  }, [filter, search]);
+  }, [consultants, filter, search]);
+
+  // ── Loading state ──
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300, color: 'var(--text-muted)', fontSize: 15 }}>
+      Loading consultants...
+    </div>
+  );
+
+  // ── Error state ──
+  if (error) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300, color: 'var(--error)', fontSize: 15 }}>
+      {error}
+    </div>
+  );
 
   return (
     <>
@@ -310,21 +336,14 @@ export default function Consultants() {
       </div>
 
       <div className="page-body">
-
-        {/* ── Filters + Search ── */}
         <div className="cons-header">
           <div className="filter-tabs">
             {tabs.map(t => (
-              <button
-                key={t}
-                className={`filter-tab${filter === t ? ' active' : ''}`}
-                onClick={() => setFilter(t)}
-              >
+              <button key={t} className={`filter-tab${filter === t ? ' active' : ''}`} onClick={() => setFilter(t)}>
                 {t}
               </button>
             ))}
           </div>
-
           <div className="cons-search-wrap">
             <span className="cons-search-icon"><SearchIcon /></span>
             <input
@@ -337,11 +356,10 @@ export default function Consultants() {
           </div>
         </div>
 
-        {/* ── Grid ── */}
         {filtered.length > 0 ? (
           <div className="cons-grid">
-            {filtered.map((c) => (
-              <ConsultantCard key={c.cons_id} consultant={c} onBook={setBooking} />
+            {filtered.map((c, index) => (
+              <ConsultantCard key={c.cons_id} consultant={c} index={index} onBook={setBooking} />
             ))}
           </div>
         ) : (
@@ -351,15 +369,10 @@ export default function Consultants() {
             <div style={{ fontSize: 13 }}>Try a different filter or search term</div>
           </div>
         )}
-
       </div>
 
-      {/* ── Booking Modal ── */}
       {booking && (
-        <BookingModal
-          consultant={booking}
-          onClose={() => setBooking(null)}
-        />
+        <BookingModal consultant={booking} onClose={() => setBooking(null)} />
       )}
     </>
   );

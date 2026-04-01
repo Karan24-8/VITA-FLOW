@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
+import { loginUser } from '../api/apiClient';
 
 const EyeIcon = ({ open }) =>
   open ? (
@@ -20,6 +21,7 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
 
   const validate = () => {
     const e = {};
@@ -28,17 +30,31 @@ export default function Login() {
     return e;
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const errs = validate();
-    if (Object.keys(errs).length) { setErrors(errs); return; }
-    localStorage.setItem('user', 'true');
-    navigate('/planner');
-  };
-
   const set = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+    if (errors.form) setErrors(prev => ({ ...prev, form: '' }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const errs = validate();
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+
+    setLoading(true);
+    try {
+      const response = await loginUser({ email: form.email, password: form.password });
+      // Backend returns { token, user: { email, id } }
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      navigate('/planner');
+    } catch (err) {
+      setErrors({
+        form: err.response?.data?.message || 'Login failed. Please try again.'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,6 +81,18 @@ export default function Login() {
         <p className="auth-form-subtitle" style={{ textAlign: 'center', marginBottom: 28 }}>Sign in to your account to continue</p>
 
         <form onSubmit={handleSubmit} className="auth-form-stack" noValidate>
+
+          {/* Generic form error (wrong password, user not found etc.) */}
+          {errors.form && (
+            <div style={{
+              color: 'var(--error)', background: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.2)',
+              borderRadius: 8, padding: '10px 14px',
+              fontSize: 13, textAlign: 'center', marginBottom: 4
+            }}>
+              {errors.form}
+            </div>
+          )}
 
           {/* Email */}
           <div className="form-field">
@@ -104,9 +132,13 @@ export default function Login() {
             {errors.password && <span style={{ fontSize: 12, color: 'var(--error)' }}>{errors.password}</span>}
           </div>
 
-          <button type="submit" className="btn-primary" style={{ marginTop: 4 }}>
-            Sign in
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <button type="submit" className="btn-primary" style={{ marginTop: 4 }} disabled={loading}>
+            {loading ? 'Signing in...' : 'Sign in'}
+            {!loading && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+              </svg>
+            )}
           </button>
 
         </form>

@@ -60,7 +60,10 @@ export default function MainLayout() {
     : 'U';
 
   const logout = () => {
+    localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('vita-profile');
+    localStorage.removeItem('vita-daily-log');
     navigate('/login');
   };
 

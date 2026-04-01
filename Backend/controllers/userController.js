@@ -6,7 +6,6 @@ const {getAllUsers} = require("../models/userModel");
 const updateProfile = async (req, res) => {
     try{
         const email = req.user.email; // from JWT
-
         const {
             name,
             phone,
@@ -17,9 +16,17 @@ const updateProfile = async (req, res) => {
             activity_level,
             allergies,
             meal_preferences,
+            meal_preference,
             deadline,
             aim_kg
         } = req.body;
+
+        const normalizedMealPreference = meal_preferences || meal_preference;
+        const normalizedAllergies = Array.isArray(allergies)
+            ? allergies
+            : (typeof allergies === "string" && allergies.trim()
+                ? allergies.split(",").map((a) => a.trim()).filter(Boolean)
+                : []);
 
         const {data, error} = await updateUserProfile(email, {
             name,
@@ -29,13 +36,13 @@ const updateProfile = async (req, res) => {
             height_cm,
             weight_kg,
             activity_level,
-            allergies,
-            meal_preferences,
+            allergies: normalizedAllergies,
+            meal_preferences: normalizedMealPreference,
             deadline,
             aim_kg
         });
 
-        if(error) return res.status(400).json({error});
+        if(error) return res.status(400).json({error: error.message});
 
         res.json({message: "Profile Updated", data});
     } catch(err){
@@ -46,7 +53,7 @@ const updateProfile = async (req, res) => {
 const fetchAllUsers = async(req, res) => {
     try{
         const {data, error} = await getAllUsers();
-        if(error) return res.status(500).json(error);
+        if(error) return res.status(500).json({error: error.message});
         res.json(data);
     }
     catch(err){

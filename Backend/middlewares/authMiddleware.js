@@ -3,6 +3,10 @@
 const jwt = require("jsonwebtoken");
 
 const authMiddleware = (req, res, next) => {
+    if (!process.env.JWT_SECRET) {
+        return res.status(500).json({message: "Server auth is not configured"});
+    }
+
     const authHeader = req.headers["authorization"];
 
     if(!authHeader)
