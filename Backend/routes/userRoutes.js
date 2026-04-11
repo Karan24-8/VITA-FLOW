@@ -1,11 +1,17 @@
 const express = require("express");
 const router = express.Router();
-const supabase = require("../config/supabaseClient");
-const {updateProfile, fetchAllUsers} = require("../controllers/userController");
+
+const { getProfile, updateProfile, fetchAllUsers } = require("../controllers/userController");
 const authMiddleware = require("../middlewares/authMiddleware");
+const allowRoles = require("../middlewares/roleMiddleware");
 
-router.put("/profile", authMiddleware, updateProfile); // Middleware creates protection
+// ✅ Fix #2 — any logged-in user can fetch their own profile
+router.get("/profile", authMiddleware, getProfile);
 
-router.get("/users", authMiddleware, fetchAllUsers);
+// any logged-in user can update their own profile
+router.put("/profile", authMiddleware, updateProfile);
+
+// ✅ DBA only
+router.get("/users", authMiddleware, allowRoles("dba"), fetchAllUsers);
 
 module.exports = router;
