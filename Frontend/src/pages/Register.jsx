@@ -27,15 +27,22 @@ function getStrength(pw) {
 
 const strengthMeta = [
   { label: '', color: 'transparent' },
-  { label: 'Weak', color: '#DC2626' },
-  { label: 'Fair', color: '#D97706' },
-  { label: 'Good', color: '#059669' },
+  { label: 'Weak',   color: '#DC2626' },
+  { label: 'Fair',   color: '#D97706' },
+  { label: 'Good',   color: '#059669' },
   { label: 'Strong', color: '#1D4ED8' },
+];
+
+// Roles available at signup — dba is intentionally excluded (set via DB)
+const ROLE_OPTIONS = [
+  { value: 'user',       label: 'User',       desc: 'Get personalised diet & workout plans', icon: '🏃' },
+  { value: 'consultant', label: 'Consultant',  desc: 'Manage and guide users on their plans',  icon: '🩺' },
+  { value: 'dba',        label: 'DBA',         desc: 'Full system access and administration',  icon: '🛠️' },
 ];
 
 export default function Register() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'user' });
   const [showPass, setShowPass] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -48,13 +55,14 @@ export default function Register() {
     if (!form.name.trim()) e.name = 'Name is required';
     if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter a valid email';
     if (form.password.length < 6) e.password = 'Password must be at least 6 characters';
+    if (!form.role) e.role = 'Please select a role';
     return e;
   };
 
   const set = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
-    if (errors.form) setErrors(prev => ({ ...prev, form: '' }));
+    if (errors.form)   setErrors(prev => ({ ...prev, form: '' }));
   };
 
   const handleSubmit = async (e) => {
@@ -64,19 +72,33 @@ export default function Register() {
 
     setLoading(true);
     try {
-      // Step 1: Create account
-      await signUpUser({ name: form.name, email: form.email, password: form.password });
+      // Step 1: Create account — role is sent to backend
+      await signUpUser({
+        name:     form.name,
+        email:    form.email,
+        password: form.password,
+        role:     form.role,
+      });
 
-      // Step 2: Auto-login to get token immediately
+      // Step 2: Auto-login to get token
       const loginRes = await loginUser({ email: form.email, password: form.password });
-      localStorage.setItem('token', loginRes.data.token);
-      localStorage.setItem('user', JSON.stringify(loginRes.data.user));
+      const { token, user } = loginRes.data;
 
-      // Step 3: Save name for SetupProfile to pre-fill
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user)); // { email, id, role }
+
+      // Step 3: Pre-fill name for SetupProfile
       localStorage.setItem('register-name', form.name);
 
-      // Step 4: Go directly to setup (not login)
-      navigate('/setup');
+      // Step 4: Route based on role
+      // Consultants & DBAs skip the health setup — go straight to their dashboard
+      if (form.role === 'consultant') {
+        navigate('/consultant-dashboard');
+      } else if (form.role === 'dba') {
+        navigate('/dba-dashboard');
+      } else {
+        navigate('/setup');
+      }
     } catch (err) {
       const msg =
         err?.response?.data?.error?.message ||
@@ -84,9 +106,7 @@ export default function Register() {
         err?.response?.data?.message ||
         err?.message ||
         'Registration failed. Please try again.';
-      setErrors({
-        form: msg
-      });
+      setErrors({ form: msg });
     } finally {
       setLoading(false);
     }
@@ -106,7 +126,12 @@ export default function Register() {
           <h1 className="brand-headline">Your health,<br /><em>precisely planned.</em></h1>
           <p className="brand-sub">Diet plans and personalised fitness goals tailored to your biology.</p>
           <div className="brand-features">
-            {['Calorie & macro tracking built around you','Personalised diet plan: Breakfast, Lunch & Dinner','Adaptive workout scheduling','Expert consultants available on-demand'].map((f) => (
+            {[
+              'Calorie & macro tracking built around you',
+              'Personalised diet plan: Breakfast, Lunch & Dinner',
+              'Adaptive workout scheduling',
+              'Expert consultants available on-demand',
+            ].map((f) => (
               <div className="brand-feature" key={f}>
                 <div className="brand-feature-dot" />
                 <span className="brand-feature-text">{f}</span>
@@ -123,29 +148,56 @@ export default function Register() {
           <p className="auth-form-subtitle">Start your health journey today — it's free.</p>
 
           <form onSubmit={handleSubmit} className="auth-form-stack" noValidate>
+
             {errors.form && (
-              <div style={{ color: 'var(--error)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 13, textAlign: 'center' }}>
+              <div style={{
+                color: 'var(--error)', background: 'rgba(239,68,68,0.08)',
+                border: '1px solid rgba(239,68,68,0.2)',
+                borderRadius: 8, padding: '10px 14px',
+                fontSize: 13, textAlign: 'center',
+              }}>
                 {errors.form}
               </div>
             )}
 
+            {/* Full name */}
             <div className="form-field">
               <label htmlFor="name">Full name</label>
-              <input id="name" className={`form-input${errors.name ? ' error' : ''}`} type="text" placeholder="Jane Doe" autoComplete="name" value={form.name} onChange={set('name')} />
+              <input
+                id="name"
+                className={`form-input${errors.name ? ' error' : ''}`}
+                type="text" placeholder="Jane Doe" autoComplete="name"
+                value={form.name} onChange={set('name')}
+              />
               {errors.name && <span style={{ fontSize: 12, color: 'var(--error)' }}>{errors.name}</span>}
             </div>
 
+            {/* Email */}
             <div className="form-field">
               <label htmlFor="email">Email address</label>
-              <input id="email" className={`form-input${errors.email ? ' error' : ''}`} type="email" placeholder="jane@example.com" autoComplete="email" value={form.email} onChange={set('email')} />
+              <input
+                id="email"
+                className={`form-input${errors.email ? ' error' : ''}`}
+                type="email" placeholder="jane@example.com" autoComplete="email"
+                value={form.email} onChange={set('email')}
+              />
               {errors.email && <span style={{ fontSize: 12, color: 'var(--error)' }}>{errors.email}</span>}
             </div>
 
+            {/* Password */}
             <div className="form-field">
               <label htmlFor="password">Password</label>
               <div className="input-wrapper">
-                <input id="password" className={`form-input${errors.password ? ' error' : ''}`} type={showPass ? 'text' : 'password'} placeholder="Min. 6 characters" autoComplete="new-password" value={form.password} onChange={set('password')} />
-                <span className="input-icon-right" onClick={() => setShowPass(p => !p)}><EyeIcon open={showPass} /></span>
+                <input
+                  id="password"
+                  className={`form-input${errors.password ? ' error' : ''}`}
+                  type={showPass ? 'text' : 'password'}
+                  placeholder="Min. 6 characters" autoComplete="new-password"
+                  value={form.password} onChange={set('password')}
+                />
+                <span className="input-icon-right" onClick={() => setShowPass(p => !p)}>
+                  <EyeIcon open={showPass} />
+                </span>
               </div>
               {form.password.length > 0 && (
                 <div>
@@ -158,9 +210,50 @@ export default function Register() {
               {errors.password && <span style={{ fontSize: 12, color: 'var(--error)' }}>{errors.password}</span>}
             </div>
 
+            {/* ✅ Role selector */}
+            <div className="form-field">
+              <label>I am joining as</label>
+              {errors.role && <span style={{ fontSize: 12, color: 'var(--error)' }}>{errors.role}</span>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                {ROLE_OPTIONS.map((opt) => (
+                  <label
+                    key={opt.value}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
+                      border: `1.5px solid ${form.role === opt.value ? 'var(--accent)' : 'var(--border-default)'}`,
+                      background: form.role === opt.value ? 'var(--accent-light)' : 'var(--bg-input)',
+                      transition: 'all 150ms',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="role"
+                      value={opt.value}
+                      checked={form.role === opt.value}
+                      onChange={set('role')}
+                      style={{ display: 'none' }}
+                    />
+                    <span style={{ fontSize: 20 }}>{opt.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{opt.label}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{opt.desc}</div>
+                    </div>
+                    {form.role === opt.value && (
+                      <span style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 700, fontSize: 16 }}>✓</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <button type="submit" className="btn-primary" style={{ marginTop: 4 }} disabled={loading}>
               {loading ? 'Creating account...' : 'Create account'}
-              {!loading && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>}
+              {!loading && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                </svg>
+              )}
             </button>
           </form>
 

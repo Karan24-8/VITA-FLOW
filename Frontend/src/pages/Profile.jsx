@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { getProfile } from '../api/apiClient';
 
 /* ── BMI helpers ── */
 function calcBMI(height, weight) {
@@ -12,9 +12,9 @@ function calcBMI(height, weight) {
 function bmiMeta(bmi) {
   if (!bmi) return { label: '—', color: 'var(--text-muted)' };
   if (bmi < 18.5) return { label: 'Underweight', color: 'var(--warning)' };
-  if (bmi < 25)   return { label: 'Healthy', color: 'var(--success)' };
-  if (bmi < 30)   return { label: 'Overweight', color: 'var(--warning)' };
-  return           { label: 'Obese', color: 'var(--error)' };
+  if (bmi < 25)   return { label: 'Healthy',     color: 'var(--success)' };
+  if (bmi < 30)   return { label: 'Overweight',  color: 'var(--warning)' };
+  return               { label: 'Obese',         color: 'var(--error)'   };
 }
 
 function StatTile({ label, value, unit }) {
@@ -54,26 +54,73 @@ function Badge({ text, color }) {
 }
 
 const ACTIVITY_EMOJI = { Light: '🚶', Moderate: '🏃', Heavy: '🏋️' };
+const ROLE_META = {
+  user:       { label: 'User',       color: 'var(--accent)' },
+  consultant: { label: 'Consultant', color: '#059669' },
+  dba:        { label: 'DBA',        color: '#7C3AED' },
+};
 
 export default function Profile() {
-  const navigate = useNavigate();
-  const [profile, setProfile] = useState({});
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
 
   useEffect(() => {
-    try {
-      const data = JSON.parse(localStorage.getItem('vita-profile')) || {};
-      setProfile(data);
-    } catch { setProfile({}); }
+    const fetchProfile = async () => {
+      try {
+        // ✅ Always fetch fresh from backend — not localStorage
+        const res = await getProfile();
+        const data = res.data;
+        setProfile(data);
+
+        // Keep localStorage in sync so DayPlanner/WeeklyPlan can read it
+        localStorage.setItem('vita-profile', JSON.stringify({
+          name:             data.name,
+          age:              data.age,
+          phone:            data.phone,
+          gender:           data.gender,
+          height_cm:        data.height_cm,
+          weight_kg:        data.weight_kg,
+          aim_kg:           data.aim_kg,
+          activity_level:   data.activity_level,
+          meal_preferences: data.meal_preferences,
+          allergies:        Array.isArray(data.allergies) ? data.allergies.join(', ') : data.allergies,
+          deadline:         data.deadline,
+          role:             data.role,
+          calories_req_per_day: data.calories_req_per_day,
+        }));
+      } catch (err) {
+        setError(err?.response?.data?.error || err?.response?.data?.message || 'Failed to load profile.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
   }, []);
 
-  const bmi  = calcBMI(profile.height_cm, profile.weight_kg);
-  const meta = bmiMeta(bmi);
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300, color: 'var(--text-muted)' }}>
+      Loading profile...
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300, color: 'var(--error)' }}>
+      {error}
+    </div>
+  );
+
+  const bmi      = calcBMI(profile.height_cm, profile.weight_kg);
+  const meta     = bmiMeta(bmi);
   const bmiWidth = bmi ? Math.min(Math.max(((parseFloat(bmi) - 10) / 35) * 100, 2), 98) : 0;
+  const initials = (profile.name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const roleMeta = ROLE_META[profile.role] || ROLE_META.user;
 
-  const initials = (profile.name || 'U')
-    .split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-
-  const genderLabel = { M: 'Male', F: 'Female', T: 'Other' };
+  // meal_preferences is the correct backend field name
+  const mealPref = profile.meal_preferences;
+  const allergiesDisplay = Array.isArray(profile.allergies)
+    ? profile.allergies.join(', ')
+    : profile.allergies;
 
   return (
     <div style={{ maxWidth: 660, margin: '0 auto', padding: '32px 24px' }}>
@@ -95,17 +142,36 @@ export default function Profile() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>{profile.name || 'Your Name'}</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {profile.meal_pref && <Badge text={profile.meal_pref === 'Veg' ? '🥦 Vegetarian' : '🍗 Non-Veg'} color="var(--accent)" />}
-              {profile.activity_level && <Badge text={`${ACTIVITY_EMOJI[profile.activity_level] || ''} ${profile.activity_level}`} color="var(--text-secondary)" />}
-              {profile.gender && <Badge text={genderLabel[profile.gender] || profile.gender} color="var(--text-muted)" />}
+              {/* ✅ use meal_preferences (backend field name) */}
+              {mealPref && (
+                <Badge
+                  text={mealPref === 'Veg' ? '🥦 Vegetarian' : '🍗 Non-Veg'}
+                  color="var(--accent)"
+                />
+              )}
+              {profile.activity_level && (
+                <Badge
+                  text={`${ACTIVITY_EMOJI[profile.activity_level] || ''} ${profile.activity_level}`}
+                  color="var(--text-secondary)"
+                />
+              )}
+              {profile.gender && (
+                <Badge
+                  text={profile.gender === 'M' ? 'Male' : profile.gender === 'F' ? 'Female' : profile.gender}
+                  color="var(--text-muted)"
+                />
+              )}
+              {/* ✅ Role badge */}
+              <Badge text={roleMeta.label} color={roleMeta.color} />
             </div>
           </div>
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <InfoRow label="Phone" value={profile.phone} />
-          <InfoRow label="Age" value={profile.age ? `${profile.age} years` : null} />
-          {profile.allergies && <InfoRow label="Allergies" value={profile.allergies} />}
+          <InfoRow label="Email"  value={profile.email} />
+          <InfoRow label="Phone"  value={profile.phone} />
+          <InfoRow label="Age"    value={profile.age ? `${profile.age} years` : null} />
+          {allergiesDisplay && <InfoRow label="Allergies" value={allergiesDisplay} />}
         </div>
       </div>
 
@@ -116,7 +182,7 @@ export default function Profile() {
         <div style={{ display: 'flex', gap: 10, marginBottom: (profile.height_cm && profile.weight_kg) ? 16 : 0, flexWrap: 'wrap' }}>
           <StatTile label="Height" value={profile.height_cm} unit="cm" />
           <StatTile label="Weight" value={profile.weight_kg} unit="kg" />
-          <StatTile label="Goal" value={profile.aim_kg} unit="kg" />
+          <StatTile label="Goal"   value={profile.aim_kg}    unit="kg" />
         </div>
 
         {/* BMI bar */}
@@ -149,11 +215,20 @@ export default function Profile() {
       {/* ── Preferences Card ── */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
         <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Preferences</h3>
-        <InfoRow label="Activity level" value={profile.activity_level ? `${ACTIVITY_EMOJI[profile.activity_level] || ''} ${profile.activity_level}` : null} />
-        <InfoRow label="Diet" value={profile.meal_pref === 'Veg' ? '🥦 Vegetarian' : profile.meal_pref === 'Non-Veg' ? '🍗 Non-Veg' : null} />
-        <InfoRow label="Goal deadline" value={profile.deadline ? new Date(profile.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : null} />
+        <InfoRow
+          label="Activity level"
+          value={profile.activity_level ? `${ACTIVITY_EMOJI[profile.activity_level] || ''} ${profile.activity_level}` : null}
+        />
+        {/* ✅ meal_preferences (backend field) */}
+        <InfoRow
+          label="Diet"
+          value={mealPref === 'Veg' ? '🥦 Vegetarian' : mealPref === 'Non-Veg' ? '🍗 Non-Veg' : null}
+        />
+        <InfoRow
+          label="Goal deadline"
+          value={profile.deadline ? new Date(profile.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : null}
+        />
       </div>
-
     </div>
   );
 }

@@ -1,28 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { generateDiet, generateWorkout } from '../api/apiClient';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { generateDiet, generateWorkout, getProfile } from '../api/apiClient';
 
 function normalizeLogged(value) {
   const v = value && typeof value === 'object' ? value : {};
-  return {
-    breakfast: !!v.breakfast,
-    lunch: !!v.lunch,
-    dinner: !!v.dinner,
-  };
+  return { breakfast: !!v.breakfast, lunch: !!v.lunch, dinner: !!v.dinner };
 }
 
-/* ─────────────────────────────────────────────
-   CALORIE / MACRO CALCULATION
-───────────────────────────────────────────── */
 function calcNutrition(profile) {
   const { age, gender, height_cm, weight_kg, activity_level, aim_kg } = profile;
   const a = parseFloat(age) || 25;
   const h = parseFloat(height_cm) || 170;
   const w = parseFloat(weight_kg) || 70;
-
   let bmr = 10 * w + 6.25 * h - 5 * a;
-  if (gender === 'F') bmr -= 161;
-  else bmr += 5;
-
+  if (gender === 'F') bmr -= 161; else bmr += 5;
   const mult = { Light: 1.375, Moderate: 1.55, Heavy: 1.725 }[activity_level] || 1.55;
   const tdee = Math.round(bmr * mult);
   const goal = aim_kg && parseFloat(aim_kg) < w ? tdee - 400 : tdee + 200;
@@ -30,62 +21,54 @@ function calcNutrition(profile) {
   const protein = Math.round((calories * 0.30) / 4);
   const carbs   = Math.round((calories * 0.45) / 4);
   const fat     = Math.round((calories * 0.25) / 9);
-
   return { calories, protein, carbs, fat };
 }
 
-/* ─────────────────────────────────────────────
-   HELPERS — parse DB plan into meal/workout shape
-───────────────────────────────────────────── */
+/** Prefer `calories_req_per_day` from Supabase (USER_PROFILE); fallback to client TDEE estimate. */
+function nutritionFromProfile(profile) {
+  const raw = profile?.calories_req_per_day;
+  const n = typeof raw === 'number' ? raw : parseFloat(raw);
+  if (raw != null && raw !== '' && !Number.isNaN(n) && n > 0) {
+    const calories = Math.max(1, Math.round(n));
+    return {
+      calories,
+      protein: Math.round((calories * 0.30) / 4),
+      carbs:   Math.round((calories * 0.45) / 4),
+      fat:     Math.round((calories * 0.25) / 9),
+    };
+  }
+  return calcNutrition(profile);
+}
 
-// Backend returns: { message, plan: { diet_plan_breakfast: [[...]], diet_plan_lunch: [[...]], diet_plan_dinner: [[...]] } }
+function readVitaProfileFromStorage() {
+  try {
+    return JSON.parse(localStorage.getItem('vita-profile')) || {};
+  } catch {
+    return {};
+  }
+}
+
 function parseDietPlan(plan, calorieGoal) {
   if (!plan) return null;
-  const weekDay = new Date().getDay(); // 0: Sun -> 6: Sat
+  const weekDay  = new Date().getDay();
   const dayIndex = weekDay === 0 ? 6 : weekDay - 1;
   return {
-    breakfast: {
-      name: 'Breakfast',
-      items: plan.diet_plan_breakfast?.[dayIndex] || [],
-      kcal: Math.round(calorieGoal * 0.3),
-      time: '8:00 AM',
-    },
-    lunch: {
-      name: 'Lunch',
-      items: plan.diet_plan_lunch?.[dayIndex] || [],
-      kcal: Math.round(calorieGoal * 0.4),
-      time: '1:00 PM',
-    },
-    dinner: {
-      name: 'Dinner',
-      items: plan.diet_plan_dinner?.[dayIndex] || [],
-      kcal: calorieGoal - Math.round(calorieGoal * 0.3) - Math.round(calorieGoal * 0.4),
-      time: '7:30 PM',
-    },
+    breakfast: { name: 'Breakfast', items: plan.diet_plan_breakfast?.[dayIndex] || [], kcal: Math.round(calorieGoal * 0.3),  time: '8:00 AM'  },
+    lunch:     { name: 'Lunch',     items: plan.diet_plan_lunch?.[dayIndex]      || [], kcal: Math.round(calorieGoal * 0.4),  time: '1:00 PM'  },
+    dinner:    { name: 'Dinner',    items: plan.diet_plan_dinner?.[dayIndex]     || [], kcal: calorieGoal - Math.round(calorieGoal * 0.3) - Math.round(calorieGoal * 0.4), time: '7:30 PM' },
   };
 }
 
-// Backend returns: { message, plan: { workout_plan: {...} } }
 function parseWorkoutPlan(plan) {
   if (!plan || !plan.workout_plan) return [];
   const wp = Array.isArray(plan.workout_plan) ? plan.workout_plan : Object.values(plan.workout_plan);
-  const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const todayName  = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const todayBlock = wp.find((d) => d?.day_name === todayName) || wp[0];
-  const exercises = Array.isArray(todayBlock?.exercises) ? todayBlock.exercises : [];
-
-  if (!exercises.length) {
-    return todayBlock?.focus === 'Rest' ? [{ label: 'Rest Day', icon: '🛋️' }] : [];
-  }
-
-  return exercises.map((ex) => ({
-    label: ex?.exercise_name || ex?.name || ex?.label || ex?.focus || 'Exercise',
-    icon: ex?.icon || '💪',
-  }));
+  const exercises  = Array.isArray(todayBlock?.exercises) ? todayBlock.exercises : [];
+  if (!exercises.length) return todayBlock?.focus === 'Rest' ? [{ label: 'Rest Day', icon: '🛋️' }] : [];
+  return exercises.map((ex) => ({ label: ex?.exercise_name || ex?.name || ex?.label || 'Exercise', icon: ex?.icon || '💪' }));
 }
 
-/* ─────────────────────────────────────────────
-   SUB-COMPONENTS
-───────────────────────────────────────────── */
 function StatCard({ label, value, sub, accent }) {
   return (
     <div className="card" style={accent ? { borderColor: 'var(--accent-border)', background: 'var(--accent-light)' } : {}}>
@@ -121,8 +104,8 @@ function MealCard({ meal, type, consumed, onToggle }) {
             borderRadius: 20, border: '1.5px solid', cursor: 'pointer',
             transition: 'all 160ms ease', fontFamily: 'var(--font-body)',
             borderColor: consumed ? 'var(--success)' : 'var(--border-default)',
-            background: consumed ? 'var(--success-light)' : 'transparent',
-            color: consumed ? 'var(--success)' : 'var(--text-muted)',
+            background:  consumed ? 'var(--success-light)' : 'transparent',
+            color:       consumed ? 'var(--success)' : 'var(--text-muted)',
           }}
         >
           {consumed ? '✓ Logged' : 'Log meal'}
@@ -147,42 +130,96 @@ function MacroBar({ label, current, goal, color }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   MAIN COMPONENT
-───────────────────────────────────────────── */
 export default function DayPlanner() {
+  const navigate = useNavigate();
+
+  // ✅ Role guard — consultants and DBAs don't have a personal plan
+  const user = (() => { try { return JSON.parse(localStorage.getItem('user')) || {}; } catch { return {}; } })();
+  useEffect(() => {
+    if (user.role === 'consultant') { navigate('/consultant-dashboard', { replace: true }); }
+    if (user.role === 'dba')        { navigate('/dba-dashboard',         { replace: true }); }
+  }, [user.role]);
+
+  const [profile, setProfile] = useState(readVitaProfileFromStorage);
+  const [profileReady, setProfileReady] = useState(false);
+  const nutrition = useMemo(() => nutritionFromProfile(profile), [profile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await getProfile();
+        if (cancelled || !data) return;
+        const patch = {
+          name:             data.name,
+          age:              data.age,
+          phone:            data.phone,
+          gender:           data.gender,
+          height_cm:        data.height_cm,
+          weight_kg:        data.weight_kg,
+          aim_kg:           data.aim_kg,
+          activity_level:   data.activity_level,
+          meal_preferences: data.meal_preferences,
+          allergies:        Array.isArray(data.allergies) ? data.allergies.join(', ') : (data.allergies ?? ''),
+          deadline:         data.deadline,
+          role:             data.role,
+          calories_req_per_day: data.calories_req_per_day,
+        };
+        setProfile((p) => ({ ...p, ...patch }));
+        try {
+          const prev = JSON.parse(localStorage.getItem('vita-profile') || '{}');
+          localStorage.setItem('vita-profile', JSON.stringify({ ...prev, ...patch }));
+        } catch { /* ignore */ }
+      } catch { /* keep localStorage-only profile */ }
+      finally {
+        if (!cancelled) setProfileReady(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const getLocalDateKey = () => {
     const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
-  const profile = (() => {
-    try { return JSON.parse(localStorage.getItem('vita-profile')) || {}; } catch { return {}; }
-  })();
+  const [meals,         setMeals]         = useState(null);
+  const [workouts,      setWorkouts]       = useState([]);
+  const [dietLoading,   setDietLoading]   = useState(true);
+  const [workoutLoading,setWorkoutLoading] = useState(true);
+  const [dietError,     setDietError]     = useState(null);
+  const [workoutError,  setWorkoutError]  = useState(null);
 
-  const nutrition = calcNutrition(profile);
-
-  const [meals, setMeals] = useState(null);
-  const [workouts, setWorkouts] = useState([]);
-  const [dietLoading, setDietLoading] = useState(true);
-  const [workoutLoading, setWorkoutLoading] = useState(true);
-  const [dietError, setDietError] = useState(null);
-  const [workoutError, setWorkoutError] = useState(null);
-
-  // ── Fetch diet plan ──
   useEffect(() => {
+    if (!profileReady) return;
     let isMounted = true;
     const fetchDiet = async () => {
       try {
         const res = await generateDiet({
-          meal_preference: profile.meal_pref || profile.meal_preferences || 'Veg',
-          allergies: profile.allergies || '',
-          calories: nutrition.calories,
+          meal_preferences: profile.meal_preferences || 'Veg',
+          allergies:        profile.allergies || '',
         });
-        const parsed = parseDietPlan(res.data.plan, nutrition.calories);
+        let calorieGoal = nutritionFromProfile(profile).calories;
+        try {
+          const { data: fresh } = await getProfile();
+          if (fresh?.calories_req_per_day != null) {
+            const c = typeof fresh.calories_req_per_day === 'number'
+              ? fresh.calories_req_per_day
+              : parseFloat(fresh.calories_req_per_day);
+            if (!Number.isNaN(c) && c > 0) calorieGoal = Math.round(c);
+            if (isMounted) {
+              setProfile((p) => ({ ...p, calories_req_per_day: fresh.calories_req_per_day }));
+              try {
+                const prev = JSON.parse(localStorage.getItem('vita-profile') || '{}');
+                localStorage.setItem(
+                  'vita-profile',
+                  JSON.stringify({ ...prev, calories_req_per_day: fresh.calories_req_per_day })
+                );
+              } catch { /* ignore */ }
+            }
+          }
+        } catch { /* use calorieGoal from nutrition */ }
+        const parsed = parseDietPlan(res.data.plan, calorieGoal);
         if (isMounted) setMeals(parsed);
       } catch (err) {
         if (isMounted) setDietError(
@@ -196,16 +233,14 @@ export default function DayPlanner() {
     };
     fetchDiet();
     return () => { isMounted = false; };
-  }, []);
+  }, [profileReady, profile.meal_preferences, profile.allergies]);
 
-  // ── Fetch workout plan ──
   useEffect(() => {
+    if (!profileReady) return;
     let isMounted = true;
     const fetchWorkout = async () => {
       try {
-        const res = await generateWorkout({
-          activity_level: profile.activity_level || 'Moderate',
-        });
+        const res = await generateWorkout({ activity_level: profile.activity_level || 'Moderate' });
         const parsed = parseWorkoutPlan(res.data.plan);
         if (isMounted) setWorkouts(parsed);
       } catch (err) {
@@ -220,7 +255,7 @@ export default function DayPlanner() {
     };
     fetchWorkout();
     return () => { isMounted = false; };
-  }, []);
+  }, [profileReady, profile.activity_level]);
 
   const dateStr = getLocalDateKey();
   const [logged, setLogged] = useState(() => {
@@ -241,33 +276,25 @@ export default function DayPlanner() {
     localStorage.setItem('vita-daily-log', JSON.stringify({ date: dateStr, logged, water }));
   }, [dateStr, logged, water]);
 
-  const caloriesConsumed = meals
-    ? (logged.breakfast ? (meals.breakfast?.kcal || 0) : 0) +
-      (logged.lunch     ? (meals.lunch?.kcal     || 0) : 0) +
-      (logged.dinner    ? (meals.dinner?.kcal     || 0) : 0)
-    : 0;
+  const caloriesConsumed =
+    (logged.breakfast ? (meals?.breakfast?.kcal || 0) : 0) +
+    (logged.lunch     ? (meals?.lunch?.kcal     || 0) : 0) +
+    (logged.dinner    ? (meals?.dinner?.kcal     || 0) : 0);
 
-  const calPct = Math.min(100, Math.round((caloriesConsumed / nutrition.calories) * 100));
-
-  const loggedMeals = meals ? [
-    logged.breakfast && meals.breakfast,
-    logged.lunch     && meals.lunch,
-    logged.dinner    && meals.dinner,
-  ].filter(Boolean) : [];
+  const calPct      = Math.min(100, Math.round((caloriesConsumed / nutrition.calories) * 100));
+  const loggedMeals = meals ? [logged.breakfast && meals.breakfast, logged.lunch && meals.lunch, logged.dinner && meals.dinner].filter(Boolean) : [];
   const totalLogged = loggedMeals.reduce((s, m) => s + (m?.kcal || 0), 0);
-  const totalAll = meals
-    ? (meals.breakfast?.kcal || 0) + (meals.lunch?.kcal || 0) + (meals.dinner?.kcal || 0)
-    : 1;
-  const fracLogged = totalAll > 0 ? totalLogged / totalAll : 0;
+  const totalAll    = meals ? (meals.breakfast?.kcal || 0) + (meals.lunch?.kcal || 0) + (meals.dinner?.kcal || 0) : 1;
+  const fracLogged  = totalAll > 0 ? totalLogged / totalAll : 0;
 
   const proteinConsumed = Math.round(nutrition.protein * fracLogged);
   const carbsConsumed   = Math.round(nutrition.carbs   * fracLogged);
   const fatConsumed     = Math.round(nutrition.fat     * fracLogged);
 
-  const hour = new Date().getHours();
+  const hour     = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const name = profile.name ? `, ${profile.name.split(' ')[0]}` : '';
-  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+  const name     = profile.name ? `, ${profile.name.split(' ')[0]}` : '';
+  const today    = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const schedule = [
     { time: '8:00 AM', title: 'Breakfast', done: logged.breakfast, active: !logged.breakfast },
@@ -282,23 +309,17 @@ export default function DayPlanner() {
           <div className="greeting">{greeting}{name} 👋</div>
           <div className="greeting-date">{today}</div>
         </div>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '8px 16px', borderRadius: 20,
-          background: 'var(--bg-card)', border: '1.5px solid var(--border-subtle)',
-          fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 20, background: 'var(--bg-card)', border: '1.5px solid var(--border-subtle)', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
           <span style={{ color: 'var(--accent-text)', fontFamily: 'var(--font-heading)', fontSize: 16 }}>{caloriesConsumed}</span>
           <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {nutrition.calories} kcal</span>
         </div>
       </div>
 
       <div className="page-body">
-
         <div className="stat-grid">
-          <StatCard label="Calorie goal" value={`${nutrition.calories} kcal`} sub={`${nutrition.calories - caloriesConsumed} remaining today`} accent />
-          <StatCard label="Water intake" value={`${water * 250} ml`} sub={`Goal: ${WATER_GOAL * 250} ml (${WATER_GOAL} cups)`} />
-          <StatCard label="Workout plan" value={workoutLoading ? 'Loading...' : `${workouts.length} exercises`} sub={`${profile.activity_level || 'Moderate'} intensity`} />
+          <StatCard label="Calorie goal"  value={`${nutrition.calories} kcal`} sub={`${nutrition.calories - caloriesConsumed} remaining today`} accent />
+          <StatCard label="Water intake"  value={`${water * 250} ml`}           sub={`Goal: ${WATER_GOAL * 250} ml (${WATER_GOAL} cups)`} />
+          <StatCard label="Workout plan"  value={workoutLoading ? 'Loading...' : `${workouts.length} exercises`} sub={`${profile.activity_level || 'Moderate'} intensity`} />
         </div>
 
         <div className="dash-grid-main">
@@ -347,7 +368,8 @@ export default function DayPlanner() {
             <div>
               <div className="card-label" style={{ marginBottom: 0 }}>Today's meal plan</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                {profile.meal_pref === 'Non-Veg' ? '🍗 Non-Vegetarian plan' : '🥦 Vegetarian plan'}
+                {/* ✅ meal_preferences */}
+                {profile.meal_preferences === 'Non-Veg' ? '🍗 Non-Vegetarian plan' : '🥦 Vegetarian plan'}
                 {profile.allergies ? ` · Avoiding: ${profile.allergies}` : ''}
               </div>
             </div>
@@ -430,7 +452,6 @@ export default function DayPlanner() {
           </div>
         </div>
 
-        {/* ── Insight banner ── */}
         <div style={{ padding: '18px 24px', borderRadius: 'var(--radius-lg)', background: 'var(--accent-light)', border: '1.5px solid var(--accent-border)', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
           <span style={{ fontSize: 22, flexShrink: 0 }}>📊</span>
           <div>
@@ -439,11 +460,9 @@ export default function DayPlanner() {
               Based on your profile — {profile.weight_kg}kg current, {profile.aim_kg || profile.weight_kg}kg target — your daily calorie goal is{' '}
               <strong>{nutrition.calories} kcal</strong> with <strong>{nutrition.protein}g protein</strong>,{' '}
               <strong>{nutrition.carbs}g carbs</strong>, and <strong>{nutrition.fat}g fat</strong>.
-              Calories are calculated using the Mifflin-St Jeor formula adjusted for your activity level.
             </div>
           </div>
         </div>
-
       </div>
     </>
   );

@@ -32,13 +32,9 @@ function StepTrack({ current, steps }) {
             <div className={`step-circle ${i < current ? 'done' : i === current ? 'active' : ''}`}>
               {i < current ? (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-              ) : (
-                i + 1
-              )}
+              ) : (i + 1)}
             </div>
-            <span className={`step-label ${i < current ? 'done' : i === current ? 'active' : ''}`}>
-              {s}
-            </span>
+            <span className={`step-label ${i < current ? 'done' : i === current ? 'active' : ''}`}>{s}</span>
           </div>
           {i < steps.length - 1 && (
             <div className={`step-connector${i < current ? ' done' : ''}`} />
@@ -57,11 +53,10 @@ function BMIBadge({ height, weight }) {
   if (!h || !w || h <= 0) return null;
   const bmi = (w / (h * h)).toFixed(1);
   let status = '', cls = '';
-  if (bmi < 18.5)    { status = 'Underweight';   cls = 'under';   }
-  else if (bmi < 25) { status = 'Healthy weight'; cls = 'healthy'; }
-  else if (bmi < 30) { status = 'Overweight';     cls = 'over';    }
-  else               { status = 'Obese';           cls = 'obese';   }
-
+  if (bmi < 18.5)       { status = 'Underweight';   cls = 'under';   }
+  else if (bmi < 25)    { status = 'Healthy weight'; cls = 'healthy'; }
+  else if (bmi < 30)    { status = 'Overweight';     cls = 'over';    }
+  else                  { status = 'Obese';           cls = 'obese';   }
   return (
     <div className="bmi-badge">
       <div>
@@ -86,18 +81,15 @@ const GENDER_OPTIONS = [
   { label: 'Female', value: 'F', icon: '♀' },
   { label: 'Other',  value: 'T' },
 ];
-
 const ACTIVITY_OPTIONS = [
   { label: 'Light',    value: 'Light',    icon: '🚶' },
   { label: 'Moderate', value: 'Moderate', icon: '🏃' },
   { label: 'Heavy',    value: 'Heavy',    icon: '🏋️' },
 ];
-
 const MEAL_OPTIONS = [
   { label: 'Vegetarian', value: 'Veg',     icon: '🥦' },
   { label: 'Non-Veg',    value: 'Non-Veg', icon: '🍗' },
 ];
-
 const STEPS = ['Basic Info', 'Body Metrics', 'Preferences'];
 
 /* ── Field helper ── */
@@ -123,33 +115,29 @@ export default function SetupProfile() {
   const getMinDeadline = () => {
     const d = new Date();
     d.setDate(d.getDate() + 14);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
   const [form, setForm] = useState({
-    name:           '',
-    phone:          '',
-    age:            '',
-    height_cm:      '',
-    weight_kg:      '',
-    aim_kg:         '',
-    deadline:       '',
-    gender:         '',
-    activity_level: '',
-    meal_pref:      '',
-    allergies:      '',
+    name:             '',
+    phone:            '',
+    age:              '',
+    height_cm:        '',
+    weight_kg:        '',
+    aim_kg:           '',
+    deadline:         '',
+    gender:           '',
+    activity_level:   '',
+    meal_preferences: '', // ✅ matches backend field name
+    allergies:        '',
   });
 
-  // Pre-fill name from register page
   useEffect(() => {
     const savedName = localStorage.getItem('register-name');
     if (savedName) setForm(prev => ({ ...prev, name: savedName }));
   }, []);
 
-  const set = (field) => (e) => {
+  const set    = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
   };
@@ -158,7 +146,6 @@ export default function SetupProfile() {
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
   };
 
-  /* ── Validation per step ── */
   const validate = (s) => {
     const e = {};
     if (s === 0) {
@@ -170,16 +157,13 @@ export default function SetupProfile() {
       if (!form.height_cm || form.height_cm < 50 || form.height_cm > 250) e.height_cm = 'Enter height in cm';
       if (!form.weight_kg || form.weight_kg < 20 || form.weight_kg > 300) e.weight_kg = 'Enter weight in kg';
       if (!form.aim_kg || form.aim_kg < 20 || form.aim_kg > 300) e.aim_kg = 'Enter a valid goal weight';
-      if (!form.deadline) {
-        e.deadline = 'Target date is required';
-      } else if (form.deadline < getMinDeadline()) {
-        e.deadline = 'Target date must be at least 2 weeks from today';
-      }
+      if (!form.deadline) { e.deadline = 'Target date is required'; }
+      else if (form.deadline < getMinDeadline()) { e.deadline = 'Target date must be at least 2 weeks from today'; }
     }
     if (s === 2) {
-      if (!form.gender)         e.gender = 'Please select a gender';
-      if (!form.activity_level) e.activity_level = 'Please select an activity level';
-      if (!form.meal_pref)      e.meal_pref = 'Please select a meal preference';
+      if (!form.gender)           e.gender = 'Please select a gender';
+      if (!form.activity_level)   e.activity_level = 'Please select an activity level';
+      if (!form.meal_preferences) e.meal_preferences = 'Please select a meal preference';
     }
     return e;
   };
@@ -190,11 +174,7 @@ export default function SetupProfile() {
     setErrors({});
     setStep(s => s + 1);
   };
-
-  const prevStep = () => {
-    setErrors({});
-    setStep(s => s - 1);
-  };
+  const prevStep = () => { setErrors({}); setStep(s => s - 1); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -205,12 +185,12 @@ export default function SetupProfile() {
     setSubmitError('');
 
     try {
-      // ✅ allergies sent as array (text[] in Supabase)
       const allergiesArray = form.allergies
         ? form.allergies.split(',').map(a => a.trim()).filter(Boolean)
         : [];
 
-      // 1. Save profile to backend DB
+      // 1. Save profile to backend
+      // ✅ All field names match backend exactly
       await updateProfile({
         name:             form.name,
         phone:            form.phone,
@@ -220,34 +200,33 @@ export default function SetupProfile() {
         weight_kg:        parseFloat(form.weight_kg),
         activity_level:   form.activity_level,
         allergies:        allergiesArray,
-        meal_preferences: form.meal_pref,
+        meal_preferences: form.meal_preferences, // ✅ correct field name
         deadline:         form.deadline,
         aim_kg:           parseFloat(form.aim_kg),
       });
 
-      // 2. Save to localStorage for DayPlanner UI
+      // 2. Sync localStorage — use meal_preferences consistently
       localStorage.setItem('vita-profile', JSON.stringify({
-        name:           form.name,
-        age:            form.age,
-        gender:         form.gender,
-        height_cm:      form.height_cm,
-        weight_kg:      form.weight_kg,
-        aim_kg:         form.aim_kg,
-        activity_level: form.activity_level,
-        meal_pref:      form.meal_pref,
-        allergies:      form.allergies,
-        deadline:       form.deadline,
+        name:             form.name,
+        age:              form.age,
+        phone:            form.phone,
+        gender:           form.gender,
+        height_cm:        form.height_cm,
+        weight_kg:        form.weight_kg,
+        aim_kg:           form.aim_kg,
+        activity_level:   form.activity_level,
+        meal_preferences: form.meal_preferences, // ✅ fixed from meal_pref
+        allergies:        form.allergies,
+        deadline:         form.deadline,
       }));
 
-      // 3. Clean up temp data
+      // 3. Cleanup
       localStorage.removeItem('register-name');
       localStorage.removeItem('register-email');
 
       // 4. Go to planner
       navigate('/planner');
-
     } catch (err) {
-      // ✅ Always extract a string, never pass an object to React
       const msg =
         err.response?.data?.error?.message ||
         err.response?.data?.message ||
@@ -261,12 +240,8 @@ export default function SetupProfile() {
 
   return (
     <div className="setup-page">
+      <div className="setup-page-top"><ThemeToggle /></div>
 
-      <div className="setup-page-top">
-        <ThemeToggle />
-      </div>
-
-      {/* Logo */}
       <div className="setup-logo">
         <svg width="22" height="22" viewBox="0 0 30 30" fill="none">
           <circle cx="15" cy="15" r="15" fill="var(--accent-light)"/>
@@ -293,7 +268,6 @@ export default function SetupProfile() {
                     type="text" placeholder="Jane Doe" autoComplete="name"
                     maxLength={60} value={form.name} onChange={set('name')} />
                 </Field>
-
                 <div className="form-grid-2">
                   <Field id="phone" label="Phone number" hint="For appointment reminders" errors={errors}>
                     <input id="phone" className={`form-input${errors.phone ? ' error' : ''}`}
@@ -319,7 +293,6 @@ export default function SetupProfile() {
               </div>
               <div className="setup-form-stack">
                 <BMIBadge height={form.height_cm} weight={form.weight_kg} />
-
                 <div className="form-grid-2">
                   <Field id="height_cm" label="Height" hint="In centimetres" errors={errors}>
                     <input id="height_cm" className={`form-input${errors.height_cm ? ' error' : ''}`}
@@ -332,7 +305,6 @@ export default function SetupProfile() {
                       value={form.weight_kg} onChange={set('weight_kg')} />
                   </Field>
                 </div>
-
                 <div className="form-grid-2">
                   <Field id="aim_kg" label="Goal weight" hint="Target in kg" errors={errors}>
                     <input id="aim_kg" className={`form-input${errors.aim_kg ? ' error' : ''}`}
@@ -357,32 +329,27 @@ export default function SetupProfile() {
                 <p className="step-sub">Help us tailor your diet and workout plan.</p>
               </div>
               <div className="setup-form-stack">
-
                 <Field id="gender" label="Gender" errors={errors}>
                   <PillGroup options={GENDER_OPTIONS} value={form.gender} onChange={setPill('gender')} />
                 </Field>
-
                 <Field id="activity_level" label="Activity level"
                   hint="Light = desk job · Moderate = 3–4 workouts/week · Heavy = daily intense training"
                   errors={errors}>
                   <PillGroup options={ACTIVITY_OPTIONS} value={form.activity_level} onChange={setPill('activity_level')} />
                 </Field>
-
-                <Field id="meal_pref" label="Meal preference" errors={errors}>
-                  <PillGroup options={MEAL_OPTIONS} value={form.meal_pref} onChange={setPill('meal_pref')} />
+                {/* ✅ field id matches form key: meal_preferences */}
+                <Field id="meal_preferences" label="Meal preference" errors={errors}>
+                  <PillGroup options={MEAL_OPTIONS} value={form.meal_preferences} onChange={setPill('meal_preferences')} />
                 </Field>
-
                 <Field id="allergies" label="Allergies or food restrictions" hint="Optional — separate with commas e.g. nuts, gluten, dairy" errors={errors}>
                   <input id="allergies" className="form-input" type="text"
                     placeholder="e.g. Lactose intolerant, tree nuts"
                     maxLength={120} value={form.allergies} onChange={set('allergies')} />
                 </Field>
-
               </div>
             </>
           )}
 
-          {/* ── Submit error ── */}
           {submitError ? (
             <div style={{
               color: 'var(--error)', background: 'rgba(239,68,68,0.08)',
@@ -394,7 +361,6 @@ export default function SetupProfile() {
             </div>
           ) : null}
 
-          {/* ── Navigation ── */}
           <div className="step-nav">
             {step > 0 && (
               <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={prevStep}>
@@ -402,7 +368,6 @@ export default function SetupProfile() {
                 Back
               </button>
             )}
-
             {step < 2 ? (
               <button type="button" className="btn-primary" style={{ flex: 2 }} onClick={nextStep}>
                 Continue
@@ -419,7 +384,6 @@ export default function SetupProfile() {
           <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 16 }}>
             Step {step + 1} of {STEPS.length}
           </p>
-
         </form>
       </div>
     </div>

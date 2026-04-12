@@ -43,7 +43,7 @@ const getOwnProfile = async (email) => {
     if (!supabase) return noDb();
     return await supabase
         .from("USER_PROFILE")
-        .select("user_id, email, name, phone, age, gender, height_cm, weight_kg, activity_level, allergies, meal_preferences, deadline, aim_kg, role, diet_plan_breakfast, diet_plan_lunch, diet_plan_dinner, workout_plan")
+        .select("user_id, email, name, phone, age, gender, height_cm, weight_kg, activity_level, allergies, meal_preferences, deadline, aim_kg, role, calories_req_per_day, diet_plan_breakfast, diet_plan_lunch, diet_plan_dinner, workout_plan")
         .eq("email", email)
         .single();
 };

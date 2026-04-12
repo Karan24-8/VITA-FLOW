@@ -33,7 +33,7 @@ export default function Login() {
   const set = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
-    if (errors.form) setErrors(prev => ({ ...prev, form: '' }));
+    if (errors.form)   setErrors(prev => ({ ...prev, form: '' }));
   };
 
   const handleSubmit = async (e) => {
@@ -44,13 +44,24 @@ export default function Login() {
     setLoading(true);
     try {
       const response = await loginUser({ email: form.email, password: form.password });
-      // Backend returns { token, user: { email, id } }
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      navigate('/planner');
+      const { token, user } = response.data;
+      // user = { email, id, role }
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      // ✅ Route based on role from backend JWT response
+      const role = user?.role;
+      if (role === 'consultant') {
+        navigate('/consultant-dashboard');
+      } else if (role === 'dba') {
+        navigate('/dba-dashboard');
+      } else {
+        navigate('/planner');
+      }
     } catch (err) {
       setErrors({
-        form: err.response?.data?.message || 'Login failed. Please try again.'
+        form: err.response?.data?.message || 'Login failed. Please try again.',
       });
     } finally {
       setLoading(false);
@@ -59,7 +70,6 @@ export default function Login() {
 
   return (
     <div className="auth-center">
-
       <div className="auth-center-top">
         <ThemeToggle />
       </div>
@@ -82,13 +92,12 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="auth-form-stack" noValidate>
 
-          {/* Generic form error (wrong password, user not found etc.) */}
           {errors.form && (
             <div style={{
               color: 'var(--error)', background: 'rgba(239,68,68,0.08)',
               border: '1px solid rgba(239,68,68,0.2)',
               borderRadius: 8, padding: '10px 14px',
-              fontSize: 13, textAlign: 'center', marginBottom: 4
+              fontSize: 13, textAlign: 'center', marginBottom: 4,
             }}>
               {errors.form}
             </div>
@@ -100,11 +109,8 @@ export default function Login() {
             <input
               id="email"
               className={`form-input${errors.email ? ' error' : ''}`}
-              type="email"
-              placeholder="jane@example.com"
-              autoComplete="email"
-              value={form.email}
-              onChange={set('email')}
+              type="email" placeholder="jane@example.com" autoComplete="email"
+              value={form.email} onChange={set('email')}
             />
             {errors.email && <span style={{ fontSize: 12, color: 'var(--error)' }}>{errors.email}</span>}
           </div>
@@ -120,10 +126,8 @@ export default function Login() {
                 id="password"
                 className={`form-input${errors.password ? ' error' : ''}`}
                 type={showPass ? 'text' : 'password'}
-                placeholder="Your password"
-                autoComplete="current-password"
-                value={form.password}
-                onChange={set('password')}
+                placeholder="Your password" autoComplete="current-password"
+                value={form.password} onChange={set('password')}
               />
               <span className="input-icon-right" onClick={() => setShowPass(p => !p)}>
                 <EyeIcon open={showPass} />
@@ -140,14 +144,12 @@ export default function Login() {
               </svg>
             )}
           </button>
-
         </form>
 
         <p className="auth-form-footer">
           Don't have an account?{' '}
           <Link to="/register" className="link">Create one</Link>
         </p>
-
       </div>
     </div>
   );
