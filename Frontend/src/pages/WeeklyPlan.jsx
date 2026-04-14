@@ -50,12 +50,12 @@ const generateWeekData = (profile, weeklyDiet, weeklyWorkout) => {
 
   return days.map((day, i) => {
     let status    = 'upcoming';
-    if (i < todayIndex) status = 'completed';
+    if (i < todayIndex) status = 'past';
     if (i === todayIndex) status = 'today';
 
     let mealsDone = { breakfast: false, lunch: false, dinner: false };
-    if (status === 'completed') mealsDone = { breakfast: true, lunch: true, dinner: true };
     if (status === 'today')     mealsDone = { breakfast: !!todayLog.breakfast, lunch: !!todayLog.lunch, dinner: !!todayLog.dinner };
+
 
     const mealsForDay   = weeklyDiet?.[i] || { breakfast: [], lunch: [], dinner: [] };
     const workoutForDay = weeklyWorkout?.find((w) => w.dayName === day) || weeklyWorkout?.[i];
@@ -178,7 +178,7 @@ export default function WeeklyPlan() {
                 <div style={{ position: 'relative', zIndex: 1 }}>
                   <div style={{ fontSize: 22, fontWeight: 700, color: day.status === 'upcoming' ? 'var(--text-primary)' : '#fff' }}>{day.day}</div>
                   <div style={{ fontSize: 13, color: day.status === 'upcoming' ? 'var(--text-muted)' : 'rgba(255,255,255,0.9)', marginTop: 4 }}>
-                    {day.date.split(' ')[0]} • {day.status === 'completed' ? 'Past' : day.status === 'today' ? 'Today' : 'Upcoming'}
+                    {day.date.split(' ')[0]} • {day.status === 'past' ? 'Past' : day.status === 'today' ? 'Today' : 'Upcoming'}
                   </div>
                 </div>
               </div>

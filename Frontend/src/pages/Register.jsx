@@ -205,6 +205,21 @@ export default function Register() {
                     <div className="strength-fill" style={{ width: `${(strength / 4) * 100}%`, background: meta.color }} />
                   </div>
                   <span style={{ fontSize: 11, color: meta.color, fontWeight: 600 }}>{meta.label}</span>
+                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {[
+                      { met: form.password.length >= 8,           text: 'At least 8 characters' },
+                      { met: /[A-Z]/.test(form.password),         text: 'Add an uppercase letter (A–Z)' },
+                      { met: /[0-9]/.test(form.password),         text: 'Add a number (0–9)' },
+                      { met: /[^A-Za-z0-9]/.test(form.password),  text: 'Add a special character (!@#$…)' },
+                    ].map(({ met, text }) => (
+                      <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+                        <span style={{ color: met ? 'var(--success)' : 'var(--error)', fontWeight: 700, fontSize: 12, lineHeight: 1 }}>
+                          {met ? '✓' : '✗'}
+                        </span>
+                        <span style={{ color: met ? 'var(--success)' : 'var(--error)', fontWeight: met ? 500 : 600 }}>{text}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               {errors.password && <span style={{ fontSize: 12, color: 'var(--error)' }}>{errors.password}</span>}

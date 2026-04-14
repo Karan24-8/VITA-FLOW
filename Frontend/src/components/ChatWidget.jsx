@@ -195,7 +195,7 @@ export default function ChatWidget() {
         <div style={{
           position: "fixed", bottom: 92, right: 28, zIndex: 900,
           width: 360, height: 520,
-          background: "var(--bg-card)",
+          background: "var(--bg-page)",
           border: "1px solid var(--border-subtle)",
           borderRadius: "var(--radius-lg)",
           boxShadow: "0 16px 48px rgba(0,0,0,0.18)",

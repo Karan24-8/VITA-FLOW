@@ -65,8 +65,18 @@ function parseWorkoutPlan(plan) {
   const todayName  = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const todayBlock = wp.find((d) => d?.day_name === todayName) || wp[0];
   const exercises  = Array.isArray(todayBlock?.exercises) ? todayBlock.exercises : [];
-  if (!exercises.length) return todayBlock?.focus === 'Rest' ? [{ label: 'Rest Day', icon: '🛋️' }] : [];
-  return exercises.map((ex) => ({ label: ex?.exercise_name || ex?.name || ex?.label || 'Exercise', icon: ex?.icon || '💪' }));
+  if (!exercises.length) return todayBlock?.focus === 'Rest' ? [{ label: 'Rest Day', icon: '🛋️', detail: '' }] : [];
+  return exercises.map((ex) => {
+    const sets = ex?.sets;
+    const reps = ex?.reps;
+    const dur  = ex?.duration_min;
+    let detail = '';
+    if (sets && reps)      detail = `${sets} sets × ${reps} reps`;
+    else if (sets && dur)  detail = `${sets} sets × ${dur} min`;
+    else if (dur)          detail = `${dur} min`;
+    else if (sets)         detail = `${sets} sets`;
+    return { label: ex?.exercise_name || ex?.name || ex?.label || 'Exercise', icon: ex?.icon || '💪', detail };
+  });
 }
 
 function StatCard({ label, value, sub, accent }) {
@@ -408,9 +418,12 @@ export default function DayPlanner() {
           ) : (
             <div className="meals-row">
               {workouts.map((w, i) => (
-                <div key={i} className="meal-card" style={{ borderLeftColor: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px' }}>
-                  <span style={{ fontSize: 24 }}>{w.icon}</span>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{w.label}</span>
+                <div key={i} className="meal-card" style={{ borderLeftColor: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px' }}>
+                  <span style={{ fontSize: 26, flexShrink: 0 }}>{w.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{w.label}</div>
+                    {w.detail && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{w.detail}</div>}
+                  </div>
                 </div>
               ))}
             </div>
