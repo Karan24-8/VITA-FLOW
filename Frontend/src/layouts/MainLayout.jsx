@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
+import ChatWidget from '../components/ChatWidget'; // ✅ NEW
 import '../appShell.css';
 
 /* ── Icons ── */
@@ -50,7 +51,6 @@ const VitaLogo = () => (
   </svg>
 );
 
-// ✅ Nav config per role
 const NAV_BY_ROLE = {
   user: [
     { to: '/planner',    icon: <PlannerIcon />,    label: 'Day Planner'  },
@@ -71,7 +71,6 @@ const NAV_BY_ROLE = {
 export default function MainLayout() {
   const navigate = useNavigate();
 
-  // ✅ Read role from localStorage user object (set at login)
   const user = (() => {
     try { return JSON.parse(localStorage.getItem('user')) || {}; } catch { return {}; }
   })();
@@ -84,7 +83,6 @@ export default function MainLayout() {
   const initials = (profile.name || user.email || 'U')
     .split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
-  // ✅ Role badge colors
   const ROLE_COLORS = { user: '#3B82F6', consultant: '#059669', dba: '#7C3AED' };
   const roleColor   = ROLE_COLORS[role] || '#3B82F6';
 
@@ -96,7 +94,7 @@ export default function MainLayout() {
     navigate('/login');
   };
 
-  const navLinks = NAV_BY_ROLE[role] || NAV_BY_ROLE.user;
+  const navLinks     = NAV_BY_ROLE[role] || NAV_BY_ROLE.user;
   const navLinkClass = ({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`;
 
   return (
@@ -104,13 +102,11 @@ export default function MainLayout() {
 
       {/* ── Sidebar ── */}
       <aside className="sidebar">
-
         <div className="sidebar-logo">
           <VitaLogo />
           <span className="sidebar-logo-text">VITA-FLOW</span>
         </div>
 
-        {/* ✅ Role badge in sidebar */}
         <div style={{ padding: '4px 16px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{
             fontSize: 11, fontWeight: 700, padding: '2px 8px',
@@ -144,7 +140,6 @@ export default function MainLayout() {
             <div className="sidebar-avatar">{initials}</div>
             <div>
               <div className="sidebar-user-name">{profile.name || user.email || 'Your Profile'}</div>
-              {/* ✅ meal_preferences (correct field name) */}
               <div className="sidebar-user-sub">{profile.meal_preferences || 'Setup complete'}</div>
             </div>
           </div>
@@ -161,13 +156,15 @@ export default function MainLayout() {
             <span>Logout</span>
           </button>
         </div>
-
       </aside>
 
       {/* ── Page Content ── */}
       <main className="main-content">
         <Outlet />
       </main>
+
+      {/* ✅ AI Chat Widget — fixed floating button, visible on all pages */}
+      <ChatWidget />
 
     </div>
   );
