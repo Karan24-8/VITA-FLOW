@@ -142,16 +142,10 @@ function PlanEditor({ user, onClose, onSaved }) {
   };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: 24,
-    }}>
-      <div style={{
-        background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
-        width: '100%', maxWidth: 760, maxHeight: '90vh',
+    <div className="modal-overlay" style={{ zIndex: 1000 }}>
+      <div className="modal-card" style={{
+        padding: 0, width: '100%', maxWidth: 760, maxHeight: '90vh',
         overflow: 'hidden', display: 'flex', flexDirection: 'column',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
       }}>
         {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -306,7 +300,7 @@ export default function ConsultantDashboard() {
           { label: 'With Active Plan', value: users.filter(u => Array.isArray(u.diet_plan_breakfast) && u.diet_plan_breakfast.length > 0).length },
           { label: 'Need Plan',       value: users.filter(u => !u.diet_plan_breakfast || !u.diet_plan_breakfast.length).length },
         ].map(stat => (
-          <div key={stat.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '16px 20px' }}>
+          <div key={stat.label} className="card" style={{ padding: '16px 20px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{stat.label}</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)' }}>{stat.value}</div>
           </div>
@@ -333,7 +327,7 @@ export default function ConsultantDashboard() {
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No users found.</div>
       ) : (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg-subtle)' }}>
@@ -358,7 +352,7 @@ export default function ConsultantDashboard() {
 
       {/* Selected user detail card */}
       {selectedUser && !editing && (
-        <div style={{ marginTop: 24, background: 'var(--bg-card)', border: '1.5px solid var(--accent-border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
+        <div className="card" style={{ marginTop: 24, border: '1.5px solid var(--accent-border)', padding: '20px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
               {selectedUser.name || selectedUser.email}

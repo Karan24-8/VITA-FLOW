@@ -59,6 +59,20 @@ function parseDietPlan(plan, calorieGoal) {
   };
 }
 
+const getExerciseIcon = (name) => {
+  const n = (name || '').toLowerCase();
+  if (n.includes('run') || n.includes('jog') || n.includes('treadmill')) return '🏃';
+  if (n.includes('walk')) return '🚶';
+  if (n.includes('cycle') || n.includes('bike')) return '🚴';
+  if (n.includes('swim')) return '🏊';
+  if (n.includes('yoga') || n.includes('stretch') || n.includes('warm')) return '🧘';
+  if (n.includes('jump') || n.includes('skip') || n.includes('plyo') || n.includes('burp')) return '⚡';
+  if (n.includes('squat') || n.includes('lunge') || n.includes('leg') || n.includes('calf')) return '🦵';
+  if (n.includes('core') || n.includes('abs') || n.includes('plank') || n.includes('crunch')) return '🛡️';
+  if (n.includes('push') || n.includes('pull') || n.includes('press') || n.includes('row') || n.includes('chest') || n.includes('back')) return '🏋️';
+  return '💪';
+};
+
 function parseWorkoutPlan(plan) {
   if (!plan || !plan.workout_plan) return [];
   const wp = Array.isArray(plan.workout_plan) ? plan.workout_plan : Object.values(plan.workout_plan);
@@ -75,7 +89,8 @@ function parseWorkoutPlan(plan) {
     else if (sets && dur)  detail = `${sets} sets × ${dur} min`;
     else if (dur)          detail = `${dur} min`;
     else if (sets)         detail = `${sets} sets`;
-    return { label: ex?.exercise_name || ex?.name || ex?.label || 'Exercise', icon: ex?.icon || '💪', detail };
+    const label = ex?.exercise_name || ex?.name || ex?.label || 'Exercise';
+    return { label, icon: ex?.icon || getExerciseIcon(label), detail };
   });
 }
 

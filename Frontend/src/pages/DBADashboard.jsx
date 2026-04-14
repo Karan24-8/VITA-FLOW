@@ -9,10 +9,7 @@ const ROLE_META = {
 
 function StatCard({ label, value, color }) {
   return (
-    <div style={{
-      background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
-      borderRadius: 'var(--radius-md)', padding: '18px 20px',
-    }}>
+    <div className="card" style={{ padding: '18px 20px' }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</div>
       <div style={{ fontSize: 30, fontWeight: 800, color: color || 'var(--text-primary)' }}>{value}</div>
     </div>
@@ -123,7 +120,7 @@ export default function DBADashboard() {
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No accounts found.</div>
       ) : (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg-subtle)' }}>

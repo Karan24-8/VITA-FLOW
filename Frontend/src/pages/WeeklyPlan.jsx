@@ -31,13 +31,30 @@ const parseWeeklyDiet = (plan) => {
   }));
 };
 
+const getExerciseIcon = (name) => {
+  const n = (name || '').toLowerCase();
+  if (n.includes('run') || n.includes('jog') || n.includes('treadmill')) return '🏃';
+  if (n.includes('walk')) return '🚶';
+  if (n.includes('cycle') || n.includes('bike')) return '🚴';
+  if (n.includes('swim')) return '🏊';
+  if (n.includes('yoga') || n.includes('stretch') || n.includes('warm')) return '🧘';
+  if (n.includes('jump') || n.includes('skip') || n.includes('plyo') || n.includes('burp')) return '⚡';
+  if (n.includes('squat') || n.includes('lunge') || n.includes('leg') || n.includes('calf')) return '🦵';
+  if (n.includes('core') || n.includes('abs') || n.includes('plank') || n.includes('crunch')) return '🛡️';
+  if (n.includes('push') || n.includes('pull') || n.includes('press') || n.includes('row') || n.includes('chest') || n.includes('back')) return '🏋️';
+  return '💪';
+};
+
 const parseWeeklyWorkout = (plan) => {
   const week = Array.isArray(plan?.workout_plan) ? plan.workout_plan : [];
   return week.map((day) => ({
     dayName:   day?.day_name,
     focus:     day?.focus,
     exercises: Array.isArray(day?.exercises)
-      ? day.exercises.map((ex) => ({ label: ex?.exercise_name || ex?.name || 'Exercise', icon: '💪' }))
+      ? day.exercises.map((ex) => {
+          const label = ex?.exercise_name || ex?.name || 'Exercise';
+          return { label, icon: getExerciseIcon(label) };
+        })
       : [],
   }));
 };
