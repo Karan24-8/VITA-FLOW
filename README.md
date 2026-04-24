@@ -74,6 +74,6 @@
 
 ## 🎓 Institution
 
-**BITS Pilani, Goa Campus**
+**BITS Pilani, K.K. Birla Goa Campus**
 
 ---
